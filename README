@@ -1,0 +1,8 @@
+This is a mirror of http://www.vim.org/scripts/script.php?script_id=161
+
+Adds a new menu to vim
+You can add your favourite files (and dirs) into it, and open them later by clicking on the corresponding menu item.
+The file list is persistent, data is stored in a file, which is the value of the $FAVOURITES
+This variable should hold the name of your favourites files with full path.
+So it must look like "~/.vim_favourites" or 'c:\program files\vim\_favourites'.
+
