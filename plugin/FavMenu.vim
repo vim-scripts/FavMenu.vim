@@ -18,6 +18,9 @@
 "         * You can add directories to your favourites
 "           Thanks to the_intellectual_person <arun_kumar_ks@hotmail.com>,
 "           who gave me a patch for this
+"    0.21:* Fixed bug, which caused not to update you menu, when you remove
+"	    one of your favourites
+"	  * Fixed REGEXP bug (When removing files)
 "
 " TODO:
 "    Are all valid filenames escaped?
@@ -67,7 +70,7 @@ fu! <SID>AddThisFilePermanent(name)
   let fullname=fnamemodify(a:name,':p')
   call <SID>AddThisFile(a:name)
   sp $FAVOURITES|set nobl|1
-  if search('^\V'.escape(fullname,'\').'\m$','w')
+  if search('^\V'.escape(fullname,'\').'\$','w')
     call confirm('This is already in your favourites file!',' :-/ ',1,'W')
   else
     exe 'norm Go'.fullname."\<Esc>"
@@ -79,10 +82,15 @@ fu! <SID>RemoveThisFile(name)
   let fullname=fnamemodify(a:name,':p')
   let path=escape(fnamemodify(fullname,':p:h'),'\. ')
   let fn=escape(fnamemodify(fullname,':p:t'),'\. ')
-  exe 'silent! aunmenu Fa&vourites.'.fn.'<Tab>'.path
   sp $FAVOURITES|set nobl
-  exe 'g/'. escape(fullname,'\. #').'/d'
+  if search('^\V'.escape(fullname,'\').'\$','w')
+    d _
+  else
+    call confirm('Cannot find this file in your favourites file!',' :-/ ',1,'e')
+  endif
+
   wq
+  call <SID>Init()
 endf
 
 fu! <SID>Init()
@@ -91,13 +99,13 @@ fu! <SID>Init()
   amenu 65.1 Fa&vourites.&Add\ current\ file :call <SID>AddThisFilePermanent(@%)<CR>
   amenu 65.4 Fa&vourites.&Edit\ favourites :call <C-r>=<SID>FavFunc()<CR>($FAVOURITES)<CR>:au BufWritePost <C-r>% call <SID>Init()<CR>
   amenu 65.5 Fa&vourites.-sep-	<nul>
+  if s:cascade_del
+    amenu 65.3 Fa&vourites.&Remove.Dummy <Nop>
+  else
+    amenu 65.2 Fa&vourites.&Remove\ current\ file :call <SID>RemoveThisFile(@%)<CR>
+  endif
 
   if filereadable($FAVOURITES)
-    if s:cascade_del
-      amenu 65.3 Fa&vourites.&Remove.Dummy <Nop>
-    else
-      amenu 65.2 Fa&vourites.&Remove\ current\ file :call <SID>RemoveThisFile(@%)<CR>
-    endif
     sp $FAVOURITES|set nobl
     let s=@/
     g/\S/call <SID>AddThisFile(getline('.'))
