@@ -1,5 +1,5 @@
 " Author: Gergely Kontra <kgergely@mcl.hu>
-" Version: 0.3
+" Version: 0.32
 " Description:
 "    Adds a new menu to vim
 "    You can add your favourite files (and directories) into it
@@ -33,6 +33,8 @@
 "    0.24:* Close the file, even when 'hidden' is set
 "            Thanks to Roger Pilkey for the bug report
 "    0.3: * Use clientserver feature to synchronize the menu instances
+"    0.31:* Shut up clientserver stuff
+"    0.32:* Hungarian translation
 "
 " TODO:
 "    Are all valid filenames escaped? (Feedback please!)
@@ -81,7 +83,7 @@ if !exists('SpWhenModified') "integration with FavMenu
   endf
 en
 
-fu! <SID>AddThisFile(name)
+fu! s:AddThisFile(name)
   let fullname=fnamemodify(a:name,':p')
   let path=TruncPath(escape(fnamemodify(fullname,':p:h'),'\. #%'))
 
@@ -94,27 +96,27 @@ fu! <SID>AddThisFile(name)
   let s:cnt=s:cnt+1
   exe 'amenu Fa&vourites.'.item." :cal \<C-r>=OpenFile()<CR>('".escape(fullname,'#%')."')<CR>"
   if s:cascade_del
-    exe 'amenu Fa&vourites.Remove.'.item." :cal <SID>RemoveThisFile('".fullname."')<CR>"
+    exe 'amenu Fa&vourites.&Remove.'.item." :cal <SID>RemoveThisFile('".fullname."')<CR>"
   en
 endf
 
-fu! <SID>AddThisFilePermanent(name)
+fu! s:AddThisFilePermanent(name)
   let fullname=fnamemodify(a:name,':p')
-  cal <SID>AddThisFile(a:name)
-  sp $FAVOURITES|se nobl bh=delete|0
+  cal s:AddThisFile(a:name)
+  let v=virtcol('.')|vs $FAVOURITES|se nobl bh=delete|0
   if search('^\V'.escape(fullname,'\').'\$','w')
     cal confirm('This is already in your favourites file!',' :-/ ',1,'W')
   el
     exe 'norm Go'.fullname."\<Esc>"
   en
   " No patching
-  let pm=&pm|let &pm=''|wq|let &pm=pm
-  cal <SID>RefreshAll()
+  let pm=&pm|let &pm=''|wq|let &pm=pm|exe 'norm' v.'|'
+  sil! cal s:RefreshAll()
 endf
 
-fu! <SID>RemoveThisFile(name)
+fu! s:RemoveThisFile(name)
   let fullname=fnamemodify(a:name,':p')
-  sp $FAVOURITES|set nobl noro ma|0
+  vs $FAVOURITES|set nobl noro ma|0
   if search('^\V'.escape(fullname,'\').'\$','w')
     d _
   el
@@ -122,10 +124,10 @@ fu! <SID>RemoveThisFile(name)
   en
   let pm=&pm|let &pm=''|let hid=&hid|se nohid|wq|let &pm=pm|let &hid=hid
   cal FavmenuInit()
-  cal <SID>RefreshAll()
+  sil! cal s:RefreshAll()
 endf
 
-fu! <SID>RefreshAll()
+fu! s:RefreshAll()
   if has('clientserver')
     let servers=serverlist()
     let pos=0
@@ -156,11 +158,21 @@ fu! FavmenuInit()
   if filereadable($FAVOURITES)
     sv $FAVOURITES|se bh=delete
     let s=@/
-    g/\S/cal <SID>AddThisFile(getline('.'))
+    g/\S/cal s:AddThisFile(getline('.'))
     let @/=s
     q
     sil! aun Fa&vourites.&Remove.Dummy
   en
 endf
 
+if $LANG=='hu'
+  menutrans Fa&vourites			Ked&vencek
+  menutrans &Add\ current\ file		&Aktuális\ fájl\ hozzáadása
+  menutrans &Remove			&Eltávolítás
+  menutrans &Remove\ current\ file	&Aktuális\ fájl\ eltávolítása
+  menutrans &Edit\ favourites		K&edvencek\ rendezése
+  menutrans Re&fresh			A&ktualizálás
+en
+
 sil! cal FavmenuInit()
+
