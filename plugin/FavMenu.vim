@@ -1,8 +1,10 @@
 " Author: Gergely Kontra <kgergely@mcl.hu>
-" Version: 0.2
+" Version: 0.3
 " Description:
 "    Adds a new menu to vim
 "    You can add your favourite files (and directories) into it
+"
+" FEEDBACK PLEASE
 "
 " Installation: Drop it into your plugin directory
 "
@@ -25,34 +27,39 @@
 "         * fav_fun is renamed to OPEN_FUNC, so you can store it in your
 "           viminfo file, and can be reused in my MRU script. Sorry for the
 "           inconvinience.
+"    0.23:* You can limit the width of the path appearing in the menu, by
+"           defining (and setting) the PATHSIZELIMIT variable.
+"         * Added menu: Refresh (will be removed in a later release)
+"    0.24:* Close the file, even when 'hidden' is set
+"            Thanks to Roger Pilkey for the bug report
+"    0.3: * Use clientserver feature to synchronize the menu instances
 "
 " TODO:
 "    Are all valid filenames escaped? (Feedback please!)
-"
 let s:cascade_del=exists('fav_cascade_del')
 
 if !exists('$FAVOURITES')
   if has('unix')
     let $FAVOURITES=$HOME.'/.vimfavourites'
-  else
+  el
     let $FAVOURITES=$VIM.'\_vimfavourites'
-  end
-end
+  en
+en
 
 if !exists('SpWhenModified') "integration with FavMenu
   fu! SpWhenModified(f)
     if &mod
       exe 'sp '.a:f
-    else
+    el
       exe 'e '.a:f
-    endif
+    en
   endf
   fu! SpWhenNamedOrModified(f)
     if bufname('')!='' || &mod
       exe 'sp '.a:f
-    else
+    el
       exe 'e '.a:f
-    end
+    en
   endf
   fu! OpenFile()
     if exists('g:OPEN_FUNC')
@@ -61,68 +68,99 @@ if !exists('SpWhenModified') "integration with FavMenu
       retu 'SpWhenModified'
     en
   endf
-end
+  fu! TruncPath(path)
+    let p=a:path
+    let pathlen=strlen(p)
+    if exists('g:PATHSIZELIMIT') && pathlen>g:PATHSIZELIMIT
+      let cut=match(p,'[/\\]',pathlen-g:PATHSIZELIMIT)
+      if cut>0 && cut<pathlen
+	let p='\.\.\.'.strpart(p,cut)
+      en
+    en
+    retu p
+  endf
+en
+
 fu! <SID>AddThisFile(name)
   let fullname=fnamemodify(a:name,':p')
-  let path=escape(fnamemodify(fullname,':p:h'),'\. #%')
+  let path=TruncPath(escape(fnamemodify(fullname,':p:h'),'\. #%'))
+
   let fn=escape(fnamemodify(fullname,':p:t'),'\. #%')
   if strlen(fn)
     let item='[&'.s:cnt.']\ \ '.fn.'<Tab>'.path
-  else
+  el
     let item='[&'.s:cnt.']\ \ <DIR><Tab>'.path
-  endif
+  en
   let s:cnt=s:cnt+1
-  exe 'amenu Fa&vourites.'.item." :call \<C-r>=OpenFile()<CR>('".escape(fullname,'#%')."')<CR>"
+  exe 'amenu Fa&vourites.'.item." :cal \<C-r>=OpenFile()<CR>('".escape(fullname,'#%')."')<CR>"
   if s:cascade_del
-    exe 'amenu Fa&vourites.Remove.'.item." :call <SID>RemoveThisFile('".fullname."')<CR>"
-  endif
+    exe 'amenu Fa&vourites.Remove.'.item." :cal <SID>RemoveThisFile('".fullname."')<CR>"
+  en
 endf
 
 fu! <SID>AddThisFilePermanent(name)
   let fullname=fnamemodify(a:name,':p')
-  call <SID>AddThisFile(a:name)
-  sp $FAVOURITES|set nobl|1
+  cal <SID>AddThisFile(a:name)
+  sp $FAVOURITES|se nobl bh=delete|0
   if search('^\V'.escape(fullname,'\').'\$','w')
-    call confirm('This is already in your favourites file!',' :-/ ',1,'W')
-  else
+    cal confirm('This is already in your favourites file!',' :-/ ',1,'W')
+  el
     exe 'norm Go'.fullname."\<Esc>"
-  endif
+  en
+  " No patching
   let pm=&pm|let &pm=''|wq|let &pm=pm
+  cal <SID>RefreshAll()
 endf
 
 fu! <SID>RemoveThisFile(name)
   let fullname=fnamemodify(a:name,':p')
-  sp $FAVOURITES|set nobl
+  sp $FAVOURITES|set nobl noro ma|0
   if search('^\V'.escape(fullname,'\').'\$','w')
     d _
-  else
-    call confirm('Cannot find this file in your favourites file!',' :-/ ',1,'e')
-  endif
-  let pm=&pm|let &pm=''|wq|let &pm=pm
-  call <SID>Init()
+  el
+    cal confirm('Cannot find this file in your favourites file!',' :-/ ',1,'e')
+  en
+  let pm=&pm|let &pm=''|let hid=&hid|se nohid|wq|let &pm=pm|let &hid=hid
+  cal FavmenuInit()
+  cal <SID>RefreshAll()
 endf
 
-fu! <SID>Init()
+fu! <SID>RefreshAll()
+  if has('clientserver')
+    let servers=serverlist()
+    let pos=0
+    let re="[^\n]\\+"  "Thanx to Mark Hillebrand
+    wh match(servers,re,pos) != -1
+      let s=matchstr(servers,re,pos)
+      let pos=pos+strlen(s)+1
+      if v:servername!=s
+	cal remote_expr(s,'FavmenuInit()')
+      en
+    endw
+  en
+endf
+
+fu! FavmenuInit()
   let s:cnt=1
-  silent! aunmenu Fa&vourites
-  amenu 65.1 Fa&vourites.&Add\ current\ file :call <SID>AddThisFilePermanent(@%)<CR>
-  amenu 65.4 Fa&vourites.&Edit\ favourites :call <C-r>=OpenFile()<CR>($FAVOURITES)<CR>:au BufWritePost <C-r>% call <SID>Init()<CR>
+  sil! aun Fa&vourites
+  amenu 65.1 Fa&vourites.&Add\ current\ file :cal <SID>AddThisFilePermanent(@%)<CR>
+  amenu 65.3 Fa&vourites.&Edit\ favourites :cal <C-r>=OpenFile()<CR>($FAVOURITES)<CR>:au BufWritePost <C-r>% cal FavmenuInit()<CR>
+  amenu 65.4 Fa&vourites.Re&fresh :cal FavmenuInit()<CR>
   amenu 65.5 Fa&vourites.-sep-	<nul>
   if s:cascade_del
-    amenu 65.3 Fa&vourites.&Remove.Dummy <Nop>
-  else
-    amenu 65.2 Fa&vourites.&Remove\ current\ file :call <SID>RemoveThisFile(@%)<CR>
-  endif
+    amenu 65.2 Fa&vourites.&Remove.Dummy <Nop>
+  el
+    amenu 65.2 Fa&vourites.&Remove\ current\ file :cal <SID>RemoveThisFile(@%)<CR>
+  en
 
   if filereadable($FAVOURITES)
-    sp $FAVOURITES|set nobl
+    sv $FAVOURITES|se bh=delete
     let s=@/
-    g/\S/call <SID>AddThisFile(getline('.'))
+    g/\S/cal <SID>AddThisFile(getline('.'))
     let @/=s
     q
-    silent! aunmenu Fa&vourites.&Remove.Dummy
-  endif
+    sil! aun Fa&vourites.&Remove.Dummy
+  en
 endf
 
-
-silent! call <SID>Init()
+sil! cal FavmenuInit()
