@@ -1,5 +1,5 @@
-" Author: Gergely Kontra <kgergely@mcl.hu>
-" Version: 0.32
+" Author: Gergely Kontra <pihentagy@gmail.com>
+" Version: 0.33
 " Description:
 "    Adds a new menu to vim
 "    You can add your favourite files (and directories) into it
@@ -35,17 +35,50 @@
 "    0.3: * Use clientserver feature to synchronize the menu instances
 "    0.31:* Shut up clientserver stuff
 "    0.32:* Hungarian translation
+"    0.33:* Spanish translation (thanks to Switcher)
+"         * bugfix
 "
 " TODO:
 "    Are all valid filenames escaped? (Feedback please!)
 let s:cascade_del=exists('fav_cascade_del')
+let texts = {
+	\ 'EN': {
+		\ 'confirmmsg1': 'This is already in your favourites file!',
+		\ 'confirmmsg2': 'Cannot find this file in your favourites file!',
+		\ 'menu': {
+			\ 'main': 'Fa&vourites',
+			\ 'add': '&Add\ current\ file',
+			\ 'remove_cascade': '&Remove',
+			\ 'remove': '&Remove\ current\ file',
+			\ 'edit': '&Edit\ favourites',
+			\ 'refresh': 'Re&fresh'}},
+	\'ES': {'confirmmsg1': '¡Esto ya existe en el archivo de favoritos!',
+		\ 'confirmmsg2': '¡Este archivo no se encuentra en el archivo de favoritos!',
+		\ 'menu': {
+			\ 'main': 'Fa&voritos',
+			\ 'add': '&Agregar\ archivo\ actual',
+			\ 'remove_cascade': 'Elimina&r',
+			\ 'remove': 'Elimina&r\ archivo\ actual',
+			\ 'edit': '&Editar\ favoritos',
+			\ 'refresh': 'Actualizar'}},
+	\ 'HU': {
+		\ 'confirmmsg1': 'Ez a fájl már a kedvenceid között van!',
+		\ 'confirmmsg2': 'Nem találom ezt a fájlt a kedvenceid között!',
+		\ 'menu': {
+			\ 'main': 'Ked&vencek',
+			\ 'add': '&Aktuális\ fájl\ hozzáadása',
+			\ 'remove_cascade': '&Eltávolítás',
+			\ 'remove': '&Aktuális\ fájl\ eltávolítása',
+			\ 'edit': 'K&edvencek\ rendezése',
+			\ 'refresh': 'A&ktualizálás'}}}
+
+" If $LANG not in "texts", then use english translation for default
+if !has_key(texts, toupper($LANG))
+  let texts[$LANG] = texts["EN"]
+endif
 
 if !exists('$FAVOURITES')
-  if has('unix')
-    let $FAVOURITES=$HOME.'/.vimfavourites'
-  el
-    let $FAVOURITES=$VIM.'\_vimfavourites'
-  en
+  let $FAVOURITES=$HOME.'/.vimfavourites'
 en
 
 if !exists('SpWhenModified') "integration with FavMenu
@@ -76,7 +109,7 @@ if !exists('SpWhenModified') "integration with FavMenu
     if exists('g:PATHSIZELIMIT') && pathlen>g:PATHSIZELIMIT
       let cut=match(p,'[/\\]',pathlen-g:PATHSIZELIMIT)
       if cut>0 && cut<pathlen
-	let p='\.\.\.'.strpart(p,cut)
+        let p='\.\.\.'.strpart(p,cut)
       en
     en
     retu p
@@ -94,9 +127,9 @@ fu! s:AddThisFile(name)
     let item='[&'.s:cnt.']\ \ <DIR><Tab>'.path
   en
   let s:cnt=s:cnt+1
-  exe 'amenu Fa&vourites.'.item." :cal \<C-r>=OpenFile()<CR>('".escape(fullname,'#%')."')<CR>"
+  exe 'amenu '.g:texts[$LANG]['menu']['main'].".".item." :cal \<C-r>=OpenFile()<CR>('".escape(fullname,'#%')."')<CR>"
   if s:cascade_del
-    exe 'amenu Fa&vourites.&Remove.'.item." :cal <SID>RemoveThisFile('".fullname."')<CR>"
+    exe 'amenu '.g:texts[$LANG]['menu']['main'].".".g:texts[$LANG]['menu']['remove_cascade'].'.'.item." :cal <SID>RemoveThisFile('".fullname."')<CR>"
   en
 endf
 
@@ -105,7 +138,7 @@ fu! s:AddThisFilePermanent(name)
   cal s:AddThisFile(a:name)
   let v=virtcol('.')|vs $FAVOURITES|se nobl bh=delete|0
   if search('^\V'.escape(fullname,'\').'\$','w')
-    cal confirm('This is already in your favourites file!',' :-/ ',1,'W')
+    cal confirm(texts[$LANG]["confirmmsg1"],' :-/ ',1,'W')
   el
     exe 'norm Go'.fullname."\<Esc>"
   en
@@ -120,7 +153,7 @@ fu! s:RemoveThisFile(name)
   if search('^\V'.escape(fullname,'\').'\$','w')
     d _
   el
-    cal confirm('Cannot find this file in your favourites file!',' :-/ ',1,'e')
+    cal confirm(texts[$LANG]["confirmmsg2"],' :-/ ',1,'e')
   en
   let pm=&pm|let &pm=''|let hid=&hid|se nohid|wq|let &pm=pm|let &hid=hid
   cal FavmenuInit()
@@ -142,17 +175,17 @@ fu! s:RefreshAll()
   en
 endf
 
-fu! FavmenuInit()
+fu!  FavmenuInit()
   let s:cnt=1
-  sil! aun Fa&vourites
-  amenu 65.1 Fa&vourites.&Add\ current\ file :cal <SID>AddThisFilePermanent(@%)<CR>
-  amenu 65.3 Fa&vourites.&Edit\ favourites :cal <C-r>=OpenFile()<CR>($FAVOURITES)<CR>:au BufWritePost <C-r>% cal FavmenuInit()<CR>
-  amenu 65.4 Fa&vourites.Re&fresh :cal FavmenuInit()<CR>
-  amenu 65.5 Fa&vourites.-sep-	<nul>
+  exe "sil! aun ".g:texts[$LANG]['menu']['main']
+  exe "amenu 65.1 ".g:texts[$LANG]['menu']['main'].".".g:texts[$LANG]['menu']['add']." :cal <SID>AddThisFilePermanent(@%)<CR>"
+  exe "amenu 65.3 ".g:texts[$LANG]['menu']['main'].".".g:texts[$LANG]['menu']['edit']." :cal <C-r>=OpenFile()<CR>($FAVOURITES)<CR>:au BufWritePost $FAVOURITES cal FavmenuInit()<CR>"
+  exe "amenu 65.4 ".g:texts[$LANG]['menu']['main'].".".g:texts[$LANG]['menu']['refresh']." :cal FavmenuInit()<CR>"
+  exe "amenu 65.5 ".g:texts[$LANG]['menu']['main'].".-sep-	<nul>"
   if s:cascade_del
-    amenu 65.2 Fa&vourites.&Remove.Dummy <Nop>
+    exe "amenu 65.2 ".g:texts[$LANG]['menu']['main'].".".g:texts[$LANG]['menu']['remove_cascade'].".Dummy <Nop>"
   el
-    amenu 65.2 Fa&vourites.&Remove\ current\ file :cal <SID>RemoveThisFile(@%)<CR>
+    exe "amenu 65.2 ".g:texts[$LANG]['menu']['main'].".".g:texts[$LANG]['menu']['remove']." :cal <SID>RemoveThisFile(@%)<CR>"
   en
 
   if filereadable($FAVOURITES)
@@ -161,18 +194,9 @@ fu! FavmenuInit()
     g/\S/cal s:AddThisFile(getline('.'))
     let @/=s
     q
-    sil! aun Fa&vourites.&Remove.Dummy
+    exe "sil! aun ".g:texts[$LANG]['menu']['main'].".".g:texts[$LANG]['menu']['remove_cascade'].".Dummy"
   en
 endf
-
-if $LANG=='hu'
-  menutrans Fa&vourites			Ked&vencek
-  menutrans &Add\ current\ file		&Aktuális\ fájl\ hozzáadása
-  menutrans &Remove			&Eltávolítás
-  menutrans &Remove\ current\ file	&Aktuális\ fájl\ eltávolítása
-  menutrans &Edit\ favourites		K&edvencek\ rendezése
-  menutrans Re&fresh			A&ktualizálás
-en
 
 sil! cal FavmenuInit()
 
